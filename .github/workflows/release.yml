@@ -1,0 +1,71 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Build and publish Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate tag
+        run: |
+          git check-ref-format "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "Invalid release tag" }
+          git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw "Release tag does not exist" }
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw "Rust toolchain installation failed" }
+
+      - name: Build release executable
+        run: |
+          cargo +stable build --locked --release --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw "Release build failed" }
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item -LiteralPath target/x86_64-pc-windows-msvc/release/golden_price.exe -Destination dist/golden_price-windows-x86_64.exe
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$env:RELEASE_TAG" --repo "$env:GH_REPO" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "$env:RELEASE_TAG" dist/golden_price-windows-x86_64.exe --repo "$env:GH_REPO" --clobber
+          } else {
+            gh release create "$env:RELEASE_TAG" dist/golden_price-windows-x86_64.exe --repo "$env:GH_REPO" --verify-tag --title "$env:RELEASE_TAG" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Release publication failed" }
