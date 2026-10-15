@@ -12,8 +12,8 @@ pub const LEFT: f32 = 26.0;
 pub const TOP: f32 = 112.0;
 pub const CHART_WIDTH: f32 = 292.0;
 pub const CHART_HEIGHT: f32 = 130.0;
-const GOLD: [u8; 4] = [241, 192, 96, 255];
-const MUTED: [u8; 4] = [141, 152, 172, 255];
+const GOLD: [u8; 4] = [255, 230, 0, 255];
+const MUTED: [u8; 4] = [255, 255, 255, 255];
 
 pub struct Scene<'a> {
 	pub session: Session,
@@ -46,7 +46,7 @@ impl Renderer {
 	pub fn chart(&mut self, scene: Scene<'_>, scale: f32) -> Result<Pixmap> {
 		let mut pixmap: Pixmap = Pixmap::new((WIDTH as f32 * scale).round() as u32, (HEIGHT as f32 * scale).round() as u32)
 			.context("图表像素分配失败")?;
-		pixmap.fill(Color::from_rgba(0.0, 0.0, 0.0, 0.5).expect("有效背景颜色"));
+		pixmap.fill(Color::from_rgba(0.0, 0.0, 0.0, 0.3).expect("有效背景颜色"));
 		let mut canvas: Canvas<'_> = Canvas { pixmap, renderer: self, scale };
 		match scene.quote {
 			Some(quote) => {
